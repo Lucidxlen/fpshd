@@ -380,6 +380,14 @@ double kda_for(const Session &s)
     return (s.kills + s.assists) / static_cast<double>(denom);
 }
 
+// NEW: canonicalization helper for legacy/bad data
+static GameType normalized_game_type(GameType t, const string &name)
+{
+    GameType by_name = parse_game_type(name);
+    if (by_name != GameType::Unknown) return by_name; // prefer name-derived type if available
+    return t;
+}
+
 // =======================================================
 // Input with exceptions
 // =======================================================
@@ -845,7 +853,9 @@ static bool parse_sessions_array(const string &s, size_t &i, Player &p)
             else if (key == "game_type")
             {
                 long long v; if (!parse_integer(s, i, v)) return false;
-                temp.game_type = static_cast<GameType>((int)v);
+                int vi = (int)v;
+                if (vi < 0 || vi > 2) temp.game_type = GameType::Unknown; // clamp bad ints
+                else                  temp.game_type = static_cast<GameType>(vi);
                 has_game_type = true;
             }
             else if (key == "kills")
@@ -884,6 +894,9 @@ static bool parse_sessions_array(const string &s, size_t &i, Player &p)
                 if (!has_k) temp.kills = 0;
                 if (!has_d) temp.deaths = 0;
                 if (!has_a) temp.assists = 0;
+
+                // Final normalization to tolerate legacy/bad ints vs names
+                temp.game_type = normalized_game_type(temp.game_type, temp.game_name);
 
                 if ((int)p.sessions.size() < MAX_ALLOWED) p.sessions.push_back(temp);
                 break;
@@ -1126,6 +1139,8 @@ void load_player(Player &p, const string &name)
             else
             {
                 if (p.player_name.empty()) p.player_name = name;
+                // normalize all sessions after load (JSON)
+                for (auto &s : p.sessions) s.game_type = normalized_game_type(s.game_type, s.game_name);
                 evaluate_achievements(p, false); // populate from data, no toasts at load
                 return;
             }
@@ -1138,6 +1153,8 @@ void load_player(Player &p, const string &name)
         p = Player();
         p.player_name = name;
     }
+    // normalize all sessions after load (legacy)
+    for (auto &s : p.sessions) s.game_type = normalized_game_type(s.game_type, s.game_name);
     evaluate_achievements(p, false);
 }
 
@@ -1158,6 +1175,9 @@ void add_session(Player &p)
         s.rank        = prompt_until_ok([&]{ return parse_nonempty("Rank (e.g., Gold 2):"); });
         s.outcome     = prompt_until_ok([&]{ return parse_outcome(); });
         s.session_date= prompt_until_ok([&]{ return parse_nonempty("Session date (YYYY-MM-DD):"); });
+
+        // ensure normalized before storing
+        s.game_type = normalized_game_type(s.game_type, s.game_name);
 
         p.sessions.push_back(s);
         evaluate_achievements(p, true); // toast any new unlocks
@@ -1226,21 +1246,38 @@ void list_sessions(const Player &p)
     }
 }
 
+// Forward declaration for run_menu used below
+int run_menu(const string &title, const vector<string> &items);
+
+// Small chooser to avoid free-typed input issues
+static bool choose_game_filter(GameType &out_type, string &out_name)
+{
+    vector<string> items = { "Valorant", "CS:GO / CS2", "All Games", "Back" };
+    while (true)
+    {
+        int c = run_menu("Choose Game Filter", items);
+        if (c == -1 || c == 3) return false; // cancelled
+        if (c == 0) { out_type = GameType::Valorant; out_name = "Valorant"; return true; }
+        if (c == 1) { out_type = GameType::CSGO;     out_name = "CS:GO";   return true; }
+        if (c == 2) { out_type = GameType::Unknown;  out_name = "All";     return true; }
+    }
+}
+
 void list_sessions_filtered(const Player &p)
 {
     if (p.sessions.empty()) { draw_toast("No sessions recorded yet."); return; }
 
     string gname;
-    GameType g = prompt_until_ok([&]{ return parse_game_with_name(gname); });
+    GameType g;
+    if (!choose_game_filter(g, gname)) { draw_toast("Filter cancelled."); return; }
 
-    vector<int> indices;
-    for (int i = 0; i < (int)p.sessions.size(); ++i)
-        if (p.sessions[i].game_type == g) indices.push_back(i);
+    // Use canonical, date-sorted indices helper for consistent filtering
+    vector<int> indices = build_sorted_indices_by_date(p, g);
 
     if (indices.empty()) { draw_toast("No sessions for " + gname + "."); return; }
 
     draw_bg_with_dimmer(0.45);
-    draw_hud(gname + " Sessions");
+    draw_hud(gname + string(g == GameType::Unknown ? " (All) Sessions" : " Sessions"));
 
     int x = 24, y = 70;
     for (int j = 0; j < (int)indices.size(); ++j)
@@ -1249,7 +1286,7 @@ void list_sessions_filtered(const Player &p)
         const Session &s = p.sessions[i];
 
         draw_card_row(x, y, screen_width() - 48, 70);
-        string head = to_string(j + 1) + ". " + s.session_date + " | Rank: " + s.rank;
+        string head = to_string(j + 1) + ". " + s.session_date + " | " + s.game_name + " | Rank: " + s.rank;
         draw_ui_text(head, COL_TEXT, x + 8, y + 8, 18);
 
         double kda = kda_for(s);
@@ -1845,30 +1882,52 @@ int main()
         "Profile Management",
         "Sessions",
         "Analytics",
+        "Achievements",
         "Window Settings",
         "Save & Exit"
     };
 
-    bool running = true;
-    while (running)
-    {
-        int choice = run_menu("Main Menu", main_items);
-        if (choice == -1)
+        bool running = true;
+        while (running)
         {
-            if (confirm_yes("Exit the program?")) break;
-            else continue;
+            int choice = run_menu("Main Menu", main_items);
+            if (choice == -1)
+            {
+                if (confirm_yes("Exit the program?")) break;
+                else continue;
+            }
+
+            switch (choice)
+            {
+                case 0: // 1) Profile Management
+                    profile_menu(player);
+                    break;
+
+                case 1: // 2) Sessions
+                    sessions_menu(player);
+                    break;
+
+                case 2: // 3) Analytics
+                    analytics_menu(player);
+                    break;
+
+                case 3: // 4) Achievements  <<< missing before
+                    show_achievements_screen(player);
+                    break;
+
+                case 4: // 5) Window Settings
+                    window_settings_menu();
+                    break;
+
+                case 5: // 6) Save & Exit   <<< missing before
+                    running = false;
+                    break;
+
+                default:
+                    break;
+            }
         }
 
-        switch (choice)
-        {
-            case 0: profile_menu(player); break;
-            case 1: sessions_menu(player); break;
-            case 2: analytics_menu(player); break;
-            case 3: window_settings_menu(); break;
-            case 4: running = false; break;
-            default: break;
-        }
-    }
 
     try
     {

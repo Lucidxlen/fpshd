@@ -1,0 +1,77 @@
+{
+  "player_name": "len",
+  "preferred_game": "valorant",
+  "sessions": [
+    {
+      "game_name": "CS:GO",
+      "game_type": 1,
+      "kills": 7,
+      "deaths": 23,
+      "assists": 17,
+      "rank": "unknown",
+      "outcome": "Win",
+      "session_date": "2025-09-20"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 3,
+      "deaths": 12,
+      "assists": 9,
+      "rank": "gold 1",
+      "outcome": "Win",
+      "session_date": "2025-09-23"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 8,
+      "deaths": 13,
+      "assists": 15,
+      "rank": "silver 3",
+      "outcome": "Loss",
+      "session_date": "2025-09-23"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 4,
+      "deaths": 21,
+      "assists": 15,
+      "rank": "silver 3",
+      "outcome": "Win",
+      "session_date": "2025-09-23"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 13,
+      "deaths": 10,
+      "assists": 3,
+      "rank": "gold 1",
+      "outcome": "Win",
+      "session_date": "2025-09-26"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 1,
+      "deaths": 21,
+      "assists": 12,
+      "rank": "silver 1",
+      "outcome": "Loss",
+      "session_date": "2025-09-23"
+    },
+    {
+      "game_name": "Valorant",
+      "game_type": 0,
+      "kills": 30,
+      "deaths": 19,
+      "assists": 5,
+      "rank": "gold 3",
+      "outcome": "Win",
+      "session_date": "2025-09-29"
+    }
+  ],
+  "achievements": ["first_match"]
+}
