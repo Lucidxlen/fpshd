@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+/build/
+/out/
+/dist/
+*.exe
+*.dll
+*.pdb
+*.o
+*.obj
+*.lib
+*.a
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.vscode/*
+.idea/
+*.code-workspace
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+*.swp
+
+# SplashKit caches (adjust if your env uses different paths)
+splashkit_cache/
+*.skcache
